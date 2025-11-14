@@ -1,6 +1,6 @@
 # envlens
 
-Terminal UI for viewing and selecting environment variables built with Go and Bubble Tea.
+Terminal UI for viewing and selecting environment variables built with [Go](https://github.com/golang/go) and [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
 ### Usage
 
