@@ -115,30 +115,41 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	s := "Select environment variables:\n\n"
+	s += renderList(m)
+	s += renderFooter(m)
+	return s
+}
 
-	// Render the choices
-	for i, choice := range m.choices {
+func renderList(model model) string {
+	var renderedList string
+	renderedList = ""
+
+	for index, choice := range model.choices {
 		cursor := " "
-		if m.cursor == i {
+		if model.cursor == index {
 			cursor = ">"
 		}
 
 		checked := " "
-		if _, ok := m.selected[i]; ok {
+		if _, ok := model.selected[index]; ok {
 			checked = "x"
 		}
 
-		s += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice)
+		renderedList += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice)
 	}
+	return renderedList
+}
 
-	s += "\nPress q to quit.\n"
+func renderFooter(m model) string {
+	footer := "\nPress q to quit.\n"
 	switch m.mode {
 	case modeNormal:
-		s += "Normal mode - press s to search."
+		footer += "Normal mode - press s to search."
 	case modeSearch:
-		s += "Search mode - press esc to exit."
+		footer += "Search mode - press esc to exit."
 	default:
-		s += "Unknown mode."
+		footer += "Unknown mode."
 	}
-	return s
+
+	return footer
 }
