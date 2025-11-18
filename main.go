@@ -14,11 +14,12 @@ const (
 )
 
 type model struct {
-	variables []string
-	cursor    int
-	choices   []string
-	selected  map[int]struct{}
-	mode      string
+	variables  []string
+	cursor     int
+	choices    []string
+	selected   map[int]struct{}
+	mode       string
+	searchTerm string
 }
 
 func main() {
@@ -48,10 +49,11 @@ func printList(list []string) {
 
 func initialModel(prop []string, initMode string) model {
 	return model{
-		variables: prop,
-		choices:   prop,
-		selected:  map[int]struct{}{},
-		mode:      initMode,
+		variables:  prop,
+		choices:    prop,
+		selected:   map[int]struct{}{},
+		mode:       initMode,
+		searchTerm: "",
 	}
 }
 
@@ -104,6 +106,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "esc":
 				m.mode = modeNormal
+			case "o":
+				m.searchTerm += "o"
 			}
 		}
 	}
@@ -141,12 +145,14 @@ func renderList(model model) string {
 }
 
 func renderFooter(m model) string {
-	footer := "\nPress q to quit.\n"
+	footer := ""
 	switch m.mode {
 	case modeNormal:
+		footer += "\nPress q to quit.\n"
 		footer += "Normal mode - press s to search."
 	case modeSearch:
-		footer += "Search mode - press esc to exit."
+		footer += "\nSearch mode - press esc for normal mode.\n"
+		footer += "Search Query: " + m.searchTerm
 	default:
 		footer += "Unknown mode."
 	}
