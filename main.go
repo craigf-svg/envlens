@@ -11,6 +11,7 @@ import (
 const (
 	modeNormal = "Normal"
 	modeSearch = "Search"
+	modeDetail = "Detail"
 )
 
 type model struct {
@@ -101,6 +102,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			case "s":
 				m.mode = modeSearch
+
+			case "d":
+				m.mode = modeDetail
 			}
 		case modeSearch:
 			switch msg.String() {
@@ -108,6 +112,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mode = modeNormal
 			case "o":
 				m.searchTerm += "o"
+			}
+		case modeDetail:
+			switch msg.String() {
+			case "esc":
+				m.mode = modeNormal
 			}
 		}
 	}
@@ -149,10 +158,13 @@ func renderFooter(m model) string {
 	switch m.mode {
 	case modeNormal:
 		footer += "\nPress q to quit.\n"
-		footer += "Normal mode - press s to search."
+		footer += "Normal mode - press s to search, press d for details."
 	case modeSearch:
-		footer += "\nSearch mode - press esc for normal mode.\n"
-		footer += "Search Query: " + m.searchTerm
+		footer += "\nSearch Query: " + m.searchTerm
+		footer += "\nSearch mode - press esc for normal mode."
+	case modeDetail:
+		footer += "\nPress v to toggle details."
+		footer += "\nDetail mode - press esc for normal mode."
 	default:
 		footer += "Unknown mode."
 	}
