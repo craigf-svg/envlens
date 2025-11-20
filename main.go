@@ -21,12 +21,20 @@ type model struct {
 	selected   map[int]struct{}
 	mode       string
 	searchTerm string
+	localVars  []string
 }
 
 func main() {
 	err := godotenv.Load()
 	if err != nil {
 		fmt.Println("No local .env found")
+	}
+
+	localEnv, err := godotenv.Read()
+	if err != nil {
+		fmt.Println("err", err)
+	} else {
+		fmt.Println("localEnv", localEnv)
 	}
 
 	var envList []string = os.Environ()
