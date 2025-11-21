@@ -125,11 +125,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mode = modeDetail
 			}
 		case modeSearch:
-			switch msg.String() {
-			case "esc":
+			switch msg.Type {
+			case tea.KeyEsc:
 				m.mode = modeNormal
-			case "o":
-				m.searchTerm += "o"
+				m.searchTerm = ""
+			case tea.KeyBackspace:
+				if len(m.searchTerm) > 0 {
+					m.searchTerm = m.searchTerm[:len(m.searchTerm)-1]
+				}
+			default:
+				if msg.Type == tea.KeyRunes {
+					m.searchTerm += msg.String()
+				}
 			}
 		case modeDetail:
 			switch msg.String() {
