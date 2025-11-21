@@ -15,16 +15,14 @@ const (
 )
 
 type model struct {
-	variables     []string
-	cursor        int
-	choices       []string
-	selected      map[int]struct{}
-	mode          string
-	searchTerm    string
-	localVars     []string
-	localChoices  []string
-	localSelected map[int]struct{}
-	localCursor   int
+	osEnvVars    SelectionModel
+	localEnvVars SelectionModel
+	mode         string
+	searchTerm   string
+	variables    []string
+	cursor       int
+	choices      []string
+	selected     map[int]struct{}
 }
 
 func main() {
@@ -65,15 +63,29 @@ func printList(list []string) {
 }
 
 func initialModel(envList []string, initMode string, localEnv []string) model {
+
+	osEnvVars := SelectionModel{
+		variables: envList,
+		choices:   envList,
+		selected:  map[int]struct{}{},
+		cursor:    0,
+	}
+
+	localEnvVars := SelectionModel{
+		variables: localEnv,
+		choices:   localEnv,
+		selected:  map[int]struct{}{},
+		cursor:    0,
+	}
+
 	return model{
-		variables:     envList,
-		choices:       envList,
-		selected:      map[int]struct{}{},
-		mode:          initMode,
-		searchTerm:    "",
-		localVars:     localEnv,
-		localChoices:  localEnv,
-		localSelected: map[int]struct{}{},
+		osEnvVars:    osEnvVars,
+		localEnvVars: localEnvVars,
+		variables:    envList,
+		choices:      envList,
+		selected:     map[int]struct{}{},
+		mode:         initMode,
+		searchTerm:   "",
 	}
 }
 
@@ -133,19 +145,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "ctrl+c", "q":
 				return m, tea.Quit
 			case "up", "k":
-				if m.localCursor > 0 {
-					m.localCursor--
+				if m.localEnvVars.cursor > 0 {
+					m.localEnvVars.cursor--
 				}
 			case "down", "j":
-				if m.localCursor < len(m.localChoices)-1 {
-					m.localCursor++
+				if m.localEnvVars.cursor < len(m.localEnvVars.choices)-1 {
+					m.localEnvVars.cursor++
 				}
 			case "enter", " ":
-				_, ok := m.localSelected[m.localCursor]
+				_, ok := m.localEnvVars.selected[m.localEnvVars.cursor]
 				if ok {
-					delete(m.localSelected, m.localCursor)
+					delete(m.localEnvVars.selected, m.localEnvVars.cursor)
 				} else {
-					m.localSelected[m.localCursor] = struct{}{}
+					m.localEnvVars.selected[m.localEnvVars.cursor] = struct{}{}
 				}
 			}
 		}
@@ -170,18 +182,18 @@ func renderList(model model) string {
 	switch model.mode {
 
 	case modeDetail:
-		for index, choice := range model.localVars {
-			localCursor := " "
-			if model.localCursor == index {
-				localCursor = ">"
+		for index, choice := range model.localEnvVars.variables {
+			cursorSymbol := " "
+			if model.localEnvVars.cursor == index {
+				cursorSymbol = ">"
 			}
 
 			checked := " "
-			if _, ok := model.localSelected[index]; ok {
+			if _, ok := model.localEnvVars.selected[index]; ok {
 				checked = "x"
 			}
 
-			renderedList += fmt.Sprintf("%s [%s] %s\n", localCursor, checked, choice)
+			renderedList += fmt.Sprintf("%s [%s] %s\n", cursorSymbol, checked, choice)
 		}
 		return renderedList
 	default:
