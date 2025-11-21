@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/joho/godotenv"
@@ -198,6 +199,9 @@ func renderList(model model) string {
 		return renderedList
 	default:
 		for index, choice := range model.osEnvVars.choices {
+			if model.mode == modeSearch && !strings.Contains(strings.ToLower(choice), strings.ToLower(model.searchTerm)) {
+				continue
+			}
 			cursor := " "
 			if model.osEnvVars.cursor == index {
 				cursor = ">"
