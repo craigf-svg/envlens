@@ -19,10 +19,6 @@ type model struct {
 	localEnvVars SelectionModel
 	mode         string
 	searchTerm   string
-	variables    []string
-	cursor       int
-	choices      []string
-	selected     map[int]struct{}
 }
 
 func main() {
@@ -38,12 +34,12 @@ func main() {
 		fmt.Println("localEnv", localEnv)
 	}
 
-	var envSlice []string
+	envSlice := make([]string, 0, len(localEnv))
 	for k, v := range localEnv {
 		envSlice = append(envSlice, k+"="+v)
 	}
 
-	var envList []string = os.Environ()
+	envList := os.Environ()
 	if os.Getenv("DEBUG") != "" {
 		printList(envList)
 	}
@@ -81,9 +77,6 @@ func initialModel(envList []string, initMode string, localEnv []string) model {
 	return model{
 		osEnvVars:    osEnvVars,
 		localEnvVars: localEnvVars,
-		variables:    envList,
-		choices:      envList,
-		selected:     map[int]struct{}{},
 		mode:         initMode,
 		searchTerm:   "",
 	}
@@ -108,21 +101,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			// The "up" and "k" keys move the cursor up
 			case "up", "k":
-				if m.cursor > 0 {
-					m.cursor--
+				if m.osEnvVars.cursor > 0 {
+					m.osEnvVars.cursor--
 				}
 			// The "down" and "j" keys move the cursor down
 			case "down", "j":
-				if m.cursor < len(m.choices)-1 {
-					m.cursor++
+				if m.osEnvVars.cursor < len(m.osEnvVars.choices)-1 {
+					m.osEnvVars.cursor++
 				}
 
 			case "enter", " ":
-				_, ok := m.selected[m.cursor]
+				_, ok := m.osEnvVars.selected[m.osEnvVars.cursor]
 				if ok {
-					delete(m.selected, m.cursor)
+					delete(m.osEnvVars.selected, m.osEnvVars.cursor)
 				} else {
-					m.selected[m.cursor] = struct{}{}
+					m.osEnvVars.selected[m.osEnvVars.cursor] = struct{}{}
 				}
 
 			case "s":
@@ -197,14 +190,14 @@ func renderList(model model) string {
 		}
 		return renderedList
 	default:
-		for index, choice := range model.choices {
+		for index, choice := range model.osEnvVars.choices {
 			cursor := " "
-			if model.cursor == index {
+			if model.osEnvVars.cursor == index {
 				cursor = ">"
 			}
 
 			checked := " "
-			if _, ok := model.selected[index]; ok {
+			if _, ok := model.osEnvVars.selected[index]; ok {
 				checked = "x"
 			}
 
