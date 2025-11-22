@@ -3,6 +3,7 @@ module github.com/craigf-svg/envlens
 go 1.24.3
 
 require (
+	github.com/atotto/clipboard v0.1.4
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/joho/godotenv v1.5.1
 )

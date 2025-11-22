@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/joho/godotenv"
 )
@@ -119,6 +120,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.osEnvVars.selected[m.osEnvVars.cursor] = struct{}{}
 				}
 
+			case "y":
+				v := m.osEnvVars.variables[m.osEnvVars.cursor]
+				err := clipboard.WriteAll(v)
+				if err != nil {
+					fmt.Println("Failed to copy to clipboard:", err)
+				}
+
 			case "s":
 				m.mode = modeSearch
 
@@ -159,6 +167,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					delete(m.localEnvVars.selected, m.localEnvVars.cursor)
 				} else {
 					m.localEnvVars.selected[m.localEnvVars.cursor] = struct{}{}
+				}
+			case "y":
+				v := m.localEnvVars.variables[m.localEnvVars.cursor]
+				err := clipboard.WriteAll(v)
+				if err != nil {
+					fmt.Println("Failed to copy to clipboard:", err)
 				}
 			}
 		}
@@ -222,13 +236,13 @@ func renderFooter(m model) string {
 	footer := ""
 	switch m.mode {
 	case modeNormal:
-		footer += "\nPress q to quit.\n"
+		footer += "\nPress y to copy value to your clipboard. Press q to quit.  \n"
 		footer += "Normal mode - press s to search, press d for details."
 	case modeSearch:
 		footer += "\nSearch Query: " + m.searchTerm
 		footer += "\nSearch mode - press esc for normal mode."
 	case modeDetail:
-		footer += "\nPress v to toggle details."
+		footer += "\nPress y to copy value to your clipboard. Press v to toggle details"
 		footer += "\nDetail mode - press esc for normal mode."
 	default:
 		footer += "Unknown mode."
