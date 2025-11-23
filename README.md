@@ -1,13 +1,33 @@
 # envlens
 
-Terminal UI for viewing and selecting environment variables built with [Go](https://github.com/golang/go) and [Bubble Tea](https://github.com/charmbracelet/bubbletea).
+A Terminal UI for viewing, searching, and selecting environment variables, built with [Go](https://github.com/golang/go) and [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
-### Usage
+## Usage
+
+Run the program in your terminal:
 
 ```bash
 go run .
 ```
 
-Use the arrow keys to navigate, the space/enter key to toggle selections, and the q key to end.
+If a `.env` file is present in the current directory, it will be loaded automatically.
 
-The results will include any `.env` files that are present in the current directory.
+## Controls
+
+### General
+
+| Key | Action |
+| :--- | :--- |
+| `q` / `ctrl+c` | Quit the application |
+| `↑` / `k` | Move cursor up |
+| `↓` / `j` | Move cursor down |
+| `space` / `enter` | Select/deselect variable |
+| `y` | Copy focused variable to clipboard |
+| `Y` | Copy all selected variables to clipboard |
+
+### Modes
+
+| Key | Mode | Description |
+| :--- | :--- | :--- |
+| `s` | **Search** | Type to filter the variable list. Press `esc` to return. |
+| `d` | **Local .env** | Switch to view variables from the local `.env` file. Press `esc` to return. |
