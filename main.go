@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	modeNormal = "Normal"
-	modeSearch = "Search"
-	modeDetail = "Detail"
+	modeNormal   = "Normal"
+	modeSearch   = "Search"
+	modeLocalEnv = "LocalEnv"
 )
 
 type model struct {
@@ -133,11 +133,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 
+			case "Y":
+				status, err := copySelectedVarsToClipboard(m.osEnvVars.selected, m.osEnvVars.variables)
+				if err != nil {
+					fmt.Println("Failed to copy to clipboard:", err)
+				} else {
+					m.statusMessage = status
+				}
+				return m, nil
+
 			case "s":
 				m.mode = modeSearch
 
 			case "d":
-				m.mode = modeDetail
+				m.mode = modeLocalEnv
 			}
 		case modeSearch:
 			switch msg.Type {
@@ -153,7 +162,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.searchTerm += msg.String()
 				}
 			}
-		case modeDetail:
+		case modeLocalEnv:
 			switch msg.String() {
 			case "esc":
 				m.mode = modeNormal
@@ -183,6 +192,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.statusMessage = "Successfully copied to clipboard"
 				}
 				return m, nil
+			case "Y":
+				status, err := copySelectedVarsToClipboard(m.localEnvVars.selected, m.localEnvVars.variables)
+				if err != nil {
+					fmt.Println("Failed to copy to clipboard:", err)
+				} else {
+					m.statusMessage = status
+				}
+				return m, nil
 			}
 		}
 	}
@@ -205,7 +222,7 @@ func renderList(model model) string {
 
 	switch model.mode {
 
-	case modeDetail:
+	case modeLocalEnv:
 		for index, choice := range model.localEnvVars.variables {
 			cursorSymbol := " "
 			if model.localEnvVars.cursor == index {
@@ -245,14 +262,14 @@ func renderFooter(m model) string {
 	footer := ""
 	switch m.mode {
 	case modeNormal:
-		footer += "\nPress y to copy value to your clipboard. Press q to quit.  \n"
-		footer += "Normal mode - press s to search, press d for details."
+		footer += "\nPress y to copy the highlighted value, Y to copy all selected values, q to quit.\n"
+		footer += "Normal mode - press s to search, press d for Local .env mode."
 	case modeSearch:
 		footer += "\nSearch Query: " + m.searchTerm
 		footer += "\nSearch mode - press esc for normal mode."
-	case modeDetail:
-		footer += "\nPress y to copy value to your clipboard. Press v to toggle details"
-		footer += "\nDetail mode - press esc for normal mode."
+	case modeLocalEnv:
+		footer += "\nPress y to copy the highlighted value, Y to copy all selected values, q to quit."
+		footer += "\nLocal .env mode - press esc for normal mode."
 	default:
 		footer += "Unknown mode."
 	}
