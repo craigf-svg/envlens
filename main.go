@@ -17,10 +17,11 @@ const (
 )
 
 type model struct {
-	osEnvVars    SelectionModel
-	localEnvVars SelectionModel
-	mode         string
-	searchTerm   string
+	osEnvVars     SelectionModel
+	localEnvVars  SelectionModel
+	mode          string
+	searchTerm    string
+	statusMessage string
 }
 
 func main() {
@@ -77,10 +78,11 @@ func initialModel(envList []string, initMode string, localEnv []string) model {
 	}
 
 	return model{
-		osEnvVars:    osEnvVars,
-		localEnvVars: localEnvVars,
-		mode:         initMode,
-		searchTerm:   "",
+		osEnvVars:     osEnvVars,
+		localEnvVars:  localEnvVars,
+		mode:          initMode,
+		searchTerm:    "",
+		statusMessage: "",
 	}
 }
 
@@ -94,6 +96,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Is it a key press?
 	case tea.KeyMsg:
+		m.statusMessage = ""
 
 		switch m.mode {
 		case modeNormal:
@@ -125,7 +128,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				err := clipboard.WriteAll(v)
 				if err != nil {
 					fmt.Println("Failed to copy to clipboard:", err)
+				} else {
+					m.statusMessage = "Successfully copied to clipboard"
 				}
+				return m, nil
 
 			case "s":
 				m.mode = modeSearch
@@ -173,7 +179,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				err := clipboard.WriteAll(v)
 				if err != nil {
 					fmt.Println("Failed to copy to clipboard:", err)
+				} else {
+					m.statusMessage = "Successfully copied to clipboard"
 				}
+				return m, nil
 			}
 		}
 	}
@@ -246,6 +255,10 @@ func renderFooter(m model) string {
 		footer += "\nDetail mode - press esc for normal mode."
 	default:
 		footer += "Unknown mode."
+	}
+
+	if m.statusMessage != "" {
+		footer += "\n" + m.statusMessage
 	}
 
 	return footer
