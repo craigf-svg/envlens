@@ -22,19 +22,19 @@ type model struct {
 	mode          string
 	searchTerm    string
 	statusMessage string
+	hideValues    bool
+	hasLocalEnv   bool
 }
 
 func main() {
 	err := godotenv.Load()
 	if err != nil {
-		fmt.Println("No local .env found")
+		fmt.Println("No local .env found:", err)
 	}
 
 	localEnv, err := godotenv.Read()
 	if err != nil {
-		fmt.Println("err", err)
-	} else {
-		fmt.Println("localEnv", localEnv)
+		fmt.Println("Error reading .env:", err)
 	}
 
 	envSlice := make([]string, 0, len(localEnv))
@@ -47,7 +47,9 @@ func main() {
 		printList(envList)
 	}
 
-	p := tea.NewProgram(initialModel(envList, modeNormal, envSlice))
+	hideValuesDefault := false
+	hasLocalEnv := (err == nil && len(localEnv) > 0)
+	p := tea.NewProgram(initialModel(envList, modeNormal, envSlice, hideValuesDefault, hasLocalEnv))
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)
@@ -61,8 +63,7 @@ func printList(list []string) {
 	fmt.Println("Total Number of Environment Variables", len(list))
 }
 
-func initialModel(envList []string, initMode string, localEnv []string) model {
-
+func initialModel(envList []string, initMode string, localEnv []string, hideValues bool, hasLocalEnv bool) model {
 	osEnvVars := SelectionModel{
 		variables: envList,
 		choices:   envList,
@@ -83,6 +84,8 @@ func initialModel(envList []string, initMode string, localEnv []string) model {
 		mode:          initMode,
 		searchTerm:    "",
 		statusMessage: "",
+		hideValues:    hideValues,
+		hasLocalEnv:   hasLocalEnv,
 	}
 }
 
@@ -123,6 +126,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.osEnvVars.selected[m.osEnvVars.cursor] = struct{}{}
 				}
 
+			case "tab":
+				m.hideValues = !m.hideValues
+
 			case "y":
 				v := m.osEnvVars.variables[m.osEnvVars.cursor]
 				err := clipboard.WriteAll(v)
@@ -146,6 +152,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mode = modeSearch
 
 			case "d":
+				if !m.hasLocalEnv {
+					m.statusMessage = "Failed to load .env file at runtime"
+					return m, nil
+				}
 				m.mode = modeLocalEnv
 			}
 		case modeSearch:
@@ -157,6 +167,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if len(m.searchTerm) > 0 {
 					m.searchTerm = m.searchTerm[:len(m.searchTerm)-1]
 				}
+			case tea.KeyTab:
+				m.hideValues = !m.hideValues
 			default:
 				if msg.Type == tea.KeyRunes {
 					m.searchTerm += msg.String()
@@ -164,8 +176,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case modeLocalEnv:
 			switch msg.String() {
-			case "esc":
+			case "esc", "d":
 				m.mode = modeNormal
+			case "tab":
+				m.hideValues = !m.hideValues
 			case "ctrl+c", "q":
 				return m, tea.Quit
 			case "up", "k":
@@ -234,7 +248,8 @@ func renderList(model model) string {
 				checked = "x"
 			}
 
-			renderedList += fmt.Sprintf("%s [%s] %s\n", cursorSymbol, checked, choice)
+			display := maskEnvVar(choice, model.hideValues)
+			renderedList += fmt.Sprintf("%s [%s] %s\n", cursorSymbol, checked, display)
 		}
 		return renderedList
 	default:
@@ -252,7 +267,8 @@ func renderList(model model) string {
 				checked = "x"
 			}
 
-			renderedList += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice)
+			display := maskEnvVar(choice, model.hideValues)
+			renderedList += fmt.Sprintf("%s [%s] %s\n", cursor, checked, display)
 		}
 		return renderedList
 	}
@@ -262,16 +278,13 @@ func renderFooter(m model) string {
 	footer := ""
 	switch m.mode {
 	case modeNormal:
-		footer += "\nPress y to copy the highlighted value, Y to copy all selected values, q to quit.\n"
-		footer += "Normal mode - press s to search, press d for Local .env mode."
+		footer += "\n[↑/↓] Navigate [↵] Select  [y/Y] Copy (one/all)  [tab] Toggle  [s] Search  [d] Local  [q] Quit"
 	case modeSearch:
-		footer += "\nSearch Query: " + m.searchTerm
-		footer += "\nSearch mode - press esc for normal mode."
+		footer = fmt.Sprintf("\nSearch: %s\n[esc] Back  [tab] Toggle", m.searchTerm)
 	case modeLocalEnv:
-		footer += "\nPress y to copy the highlighted value, Y to copy all selected values, q to quit."
-		footer += "\nLocal .env mode - press esc for normal mode."
+		footer += "\n[↑/↓] Navigate [↵] Select [y/Y] Copy (one/all) [tab] Toggle [d] Global  [q] Quit"
 	default:
-		footer += "Unknown mode."
+		footer += "\n[?] Unknown mode"
 	}
 
 	if m.statusMessage != "" {
@@ -279,4 +292,22 @@ func renderFooter(m model) string {
 	}
 
 	return footer
+}
+
+func maskEnvVar(line string, hide bool) string {
+	if !hide {
+		return line
+	}
+	parts := strings.SplitN(line, "=", 2)
+	if len(parts) != 2 {
+		return line
+	}
+	if parts[1] == "" {
+		return parts[0] + "="
+	}
+	mask := ""
+	for i := 0; i < len(parts[1]); i++ {
+		mask += "*"
+	}
+	return parts[0] + "=" + mask
 }
