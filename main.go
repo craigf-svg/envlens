@@ -24,6 +24,7 @@ type model struct {
 	statusMessage string
 	hideValues    bool
 	hasLocalEnv   bool
+	height        int
 }
 
 func main() {
@@ -86,6 +87,7 @@ func initialModel(envList []string, initMode string, localEnv []string, hideValu
 		statusMessage: "",
 		hideValues:    hideValues,
 		hasLocalEnv:   hasLocalEnv,
+		height:        20,
 	}
 }
 
@@ -96,6 +98,14 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+
+	// Handle terminal resize
+	case tea.WindowSizeMsg:
+		m.height = msg.Height - 5
+		if m.height < 3 {
+			m.height = 3
+		}
+		return m, nil
 
 	// Is it a key press?
 	case tea.KeyMsg:
@@ -223,6 +233,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func visibleRange(cursor, total, height int) (start, end int) {
+	if total <= height {
+		return 0, total
+	}
+	start = cursor - height/2
+	if start < 0 {
+		start = 0
+	}
+	end = start + height
+	if end > total {
+		end = total
+		start = end - height
+	}
+	return start, end
+}
+
 func (m model) View() string {
 	s := "Select environment variables:\n\n"
 	s += renderList(m)
@@ -230,48 +256,50 @@ func (m model) View() string {
 	return s
 }
 
-func renderList(model model) string {
-	var renderedList string
-	renderedList = ""
+func renderList(m model) string {
+	var items []string
+	var cursor int
+	var selected map[int]struct{}
 
-	switch model.mode {
-
+	switch m.mode {
 	case modeLocalEnv:
-		for index, choice := range model.localEnvVars.variables {
-			cursorSymbol := " "
-			if model.localEnvVars.cursor == index {
-				cursorSymbol = ">"
+		items = m.localEnvVars.variables
+		cursor = m.localEnvVars.cursor
+		selected = m.localEnvVars.selected
+	case modeSearch:
+		for i, choice := range m.osEnvVars.choices {
+			if strings.Contains(strings.ToLower(choice), strings.ToLower(m.searchTerm)) {
+				items = append(items, choice)
+				if i == m.osEnvVars.cursor {
+					cursor = len(items) - 1
+				}
 			}
-
-			checked := " "
-			if _, ok := model.localEnvVars.selected[index]; ok {
-				checked = "x"
-			}
-
-			display := maskEnvVar(choice, model.hideValues)
-			renderedList += fmt.Sprintf("%s [%s] %s\n", cursorSymbol, checked, display)
 		}
-		return renderedList
+		selected = m.osEnvVars.selected
+		if len(items) == 0 {
+			return "No results found\n"
+		}
 	default:
-		for index, choice := range model.osEnvVars.choices {
-			if model.mode == modeSearch && !strings.Contains(strings.ToLower(choice), strings.ToLower(model.searchTerm)) {
-				continue
-			}
-			cursor := " "
-			if model.osEnvVars.cursor == index {
-				cursor = ">"
-			}
-
-			checked := " "
-			if _, ok := model.osEnvVars.selected[index]; ok {
-				checked = "x"
-			}
-
-			display := maskEnvVar(choice, model.hideValues)
-			renderedList += fmt.Sprintf("%s [%s] %s\n", cursor, checked, display)
-		}
-		return renderedList
+		items = m.osEnvVars.choices
+		cursor = m.osEnvVars.cursor
+		selected = m.osEnvVars.selected
 	}
+
+	start, end := visibleRange(cursor, len(items), m.height)
+
+	var output string
+	for i := start; i < end; i++ {
+		symbol := " "
+		if i == cursor {
+			symbol = ">"
+		}
+		check := " "
+		if _, ok := selected[i]; ok {
+			check = "x"
+		}
+		output += fmt.Sprintf("%s [%s] %s\n", symbol, check, maskEnvVar(items[i], m.hideValues))
+	}
+	return output
 }
 
 func renderFooter(m model) string {
