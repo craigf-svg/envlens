@@ -18,6 +18,10 @@ const (
 	footerRightPadding = 5
 )
 
+var (
+	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+)
+
 type model struct {
 	osEnvVars     SelectionModel
 	localEnvVars  SelectionModel
@@ -301,9 +305,14 @@ func renderList(m model) string {
 		}
 		check := " "
 		if _, ok := selected[i]; ok {
-			check = "x"
+			check = cursorStyle.Render("x")
 		}
-		output += fmt.Sprintf("%s [%s] %s\n", symbol, check, maskEnvVar(items[i], m.hideValues))
+		line := "%s [%s] %s"
+		formatLine := fmt.Sprintf(line, symbol, check, maskEnvVar(items[i], m.hideValues))
+		if drawCursor {
+			formatLine = cursorStyle.Render(formatLine)
+		}
+		output += formatLine + "\n"
 	}
 	return output
 }
@@ -316,7 +325,8 @@ func renderFooter(m model) string {
 		footer += lipgloss.PlaceHorizontal(m.width-footerRightPadding, lipgloss.Right, cursorPosition)
 		footer += "\n[↑/↓] Navigate [↵] Select  [y/Y] Copy (one/all)  [tab] Toggle  [s] Search  [d] Local  [q] Quit"
 	case modeSearch:
-		footer = fmt.Sprintf("\nSearch: %s█\n[esc] Back  [tab] Toggle", m.searchTerm)
+		styledBlock := cursorStyle.Render("█")
+		footer = fmt.Sprintf("\nSearch: %s%s\n[esc] Back  [tab] Toggle", m.searchTerm, styledBlock)
 	case modeLocalEnv:
 		footer += "\n[↑/↓] Navigate [↵] Select [y/Y] Copy (one/all) [tab] Toggle [d] Global  [q] Quit"
 	default:
