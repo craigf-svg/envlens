@@ -20,6 +20,7 @@ const (
 
 var (
 	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	styledCheck = cursorStyle.Render("x")
 )
 
 type model struct {
@@ -276,8 +277,9 @@ func renderList(m model) string {
 		cursor = m.localEnvVars.cursor
 		selected = m.localEnvVars.selected
 	case modeSearch:
+		term := strings.ToLower(m.searchTerm)
 		for i, choice := range m.osEnvVars.choices {
-			if strings.Contains(strings.ToLower(choice), strings.ToLower(m.searchTerm)) {
+			if strings.Contains(strings.ToLower(choice), term) {
 				items = append(items, choice)
 				if i == m.osEnvVars.cursor {
 					cursor = len(items) - 1
@@ -305,7 +307,7 @@ func renderList(m model) string {
 		}
 		check := " "
 		if _, ok := selected[i]; ok {
-			check = cursorStyle.Render("x")
+			check = styledCheck
 		}
 		line := "%s [%s] %s"
 		formatLine := fmt.Sprintf(line, symbol, check, maskEnvVar(items[i], m.hideValues))
@@ -344,16 +346,9 @@ func maskEnvVar(line string, hide bool) string {
 	if !hide {
 		return line
 	}
-	parts := strings.SplitN(line, "=", 2)
-	if len(parts) != 2 {
+	key, val, found := strings.Cut(line, "=")
+	if !found {
 		return line
 	}
-	if parts[1] == "" {
-		return parts[0] + "="
-	}
-	mask := ""
-	for i := 0; i < len(parts[1]); i++ {
-		mask += "*"
-	}
-	return parts[0] + "=" + mask
+	return key + "=" + strings.Repeat("*", len(val))
 }
