@@ -307,7 +307,11 @@ func renderList(m model) string {
 		}
 		check := " "
 		if _, ok := selected[i]; ok {
-			check = styledCheck
+			if drawCursor {
+				check = "x"
+			} else {
+				check = styledCheck
+			}
 		}
 		line := "%s [%s] %s"
 		formatLine := fmt.Sprintf(line, symbol, check, maskEnvVar(items[i], m.hideValues))
