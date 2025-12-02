@@ -7,13 +7,15 @@ import (
 
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/joho/godotenv"
 )
 
 const (
-	modeNormal   = "Normal"
-	modeSearch   = "Search"
-	modeLocalEnv = "LocalEnv"
+	modeNormal         = "Normal"
+	modeSearch         = "Search"
+	modeLocalEnv       = "LocalEnv"
+	footerRightPadding = 5
 )
 
 type model struct {
@@ -25,6 +27,7 @@ type model struct {
 	hideValues    bool
 	hasLocalEnv   bool
 	height        int
+	width         int
 }
 
 func main() {
@@ -88,6 +91,7 @@ func initialModel(envList []string, initMode string, localEnv []string, hideValu
 		hideValues:    hideValues,
 		hasLocalEnv:   hasLocalEnv,
 		height:        20,
+		width:         80,
 	}
 }
 
@@ -102,6 +106,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle terminal resize
 	case tea.WindowSizeMsg:
 		m.height = msg.Height - 5
+		m.width = msg.Width
 		if m.height < 3 {
 			m.height = 3
 		}
@@ -290,7 +295,8 @@ func renderList(m model) string {
 	var output string
 	for i := start; i < end; i++ {
 		symbol := " "
-		if i == cursor {
+		drawCursor := i == cursor && m.mode != modeSearch
+		if drawCursor {
 			symbol = ">"
 		}
 		check := " "
@@ -306,9 +312,11 @@ func renderFooter(m model) string {
 	footer := ""
 	switch m.mode {
 	case modeNormal:
+		cursorPosition := fmt.Sprintf("<%d-%d>", m.osEnvVars.cursor+1, len(m.osEnvVars.variables))
+		footer += lipgloss.PlaceHorizontal(m.width-footerRightPadding, lipgloss.Right, cursorPosition)
 		footer += "\n[↑/↓] Navigate [↵] Select  [y/Y] Copy (one/all)  [tab] Toggle  [s] Search  [d] Local  [q] Quit"
 	case modeSearch:
-		footer = fmt.Sprintf("\nSearch: %s\n[esc] Back  [tab] Toggle", m.searchTerm)
+		footer = fmt.Sprintf("\nSearch: %s█\n[esc] Back  [tab] Toggle", m.searchTerm)
 	case modeLocalEnv:
 		footer += "\n[↑/↓] Navigate [↵] Select [y/Y] Copy (one/all) [tab] Toggle [d] Global  [q] Quit"
 	default:
