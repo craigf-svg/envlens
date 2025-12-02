@@ -19,8 +19,9 @@ const (
 )
 
 var (
-	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	styledCheck = cursorStyle.Render("x")
+	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("204"))
+	checkStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("204"))
+	styledCheck = checkStyle.Render("x")
 )
 
 type model struct {
