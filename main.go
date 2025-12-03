@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -37,28 +38,42 @@ type model struct {
 }
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		fmt.Println("No local .env found:", err)
-	}
+	demoMode := flag.Bool("demo", false, "Run with test data")
+	flag.Parse()
 
-	localEnv, err := godotenv.Read()
-	if err != nil {
-		fmt.Println("Error reading .env:", err)
-	}
+	var envList []string
+	var envSlice []string
+	var hasLocalEnv bool
 
-	envSlice := make([]string, 0, len(localEnv))
-	for k, v := range localEnv {
-		envSlice = append(envSlice, k+"="+v)
-	}
+	if *demoMode {
+		envList = getDemoEnvVars()
+		envSlice = getDemoLocalEnvVars()
+		hasLocalEnv = true
+	} else {
+		err := godotenv.Load()
+		if err != nil {
+			fmt.Println("No local .env found:", err)
+		}
 
-	envList := os.Environ()
-	if os.Getenv("DEBUG") != "" {
-		printList(envList)
+		localEnv, err := godotenv.Read()
+		if err != nil {
+			fmt.Println("Error reading .env:", err)
+		}
+
+		envSlice = make([]string, 0, len(localEnv))
+		for k, v := range localEnv {
+			envSlice = append(envSlice, k+"="+v)
+		}
+
+		envList = os.Environ()
+		if os.Getenv("DEBUG") != "" {
+			printList(envList)
+		}
+
+		hasLocalEnv = (err == nil && len(localEnv) > 0)
 	}
 
 	hideValuesDefault := false
-	hasLocalEnv := (err == nil && len(localEnv) > 0)
 	p := tea.NewProgram(initialModel(envList, modeNormal, envSlice, hideValuesDefault, hasLocalEnv))
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
@@ -261,7 +276,18 @@ func visibleRange(cursor, total, height int) (start, end int) {
 }
 
 func (m model) View() string {
-	s := "Select environment variables:\n\n"
+	var header string
+	switch m.mode {
+	case modeNormal:
+		header = "📋 Environment Variables:"
+	case modeLocalEnv:
+		header = "📁 Local .env file:"
+	case modeSearch:
+		header = "🔍 Search Results:"
+	default:
+		header = "Environment Variables:"
+	}
+	s := header + "\n\n"
 	s += renderList(m)
 	s += renderFooter(m)
 	return s
@@ -297,7 +323,11 @@ func renderList(m model) string {
 		selected = m.osEnvVars.selected
 	}
 
-	start, end := visibleRange(cursor, len(items), m.height)
+	listHeight := m.height
+	if m.mode == modeSearch {
+		listHeight = m.height - 1
+	}
+	start, end := visibleRange(cursor, len(items), listHeight)
 
 	var output string
 	for i := start; i < end; i++ {
@@ -340,9 +370,7 @@ func renderFooter(m model) string {
 		footer += "\n[?] Unknown mode"
 	}
 
-	if m.statusMessage != "" {
-		footer += "\n" + m.statusMessage
-	}
+	footer += "\n" + m.statusMessage
 
 	return footer
 }
