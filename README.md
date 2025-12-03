@@ -1,4 +1,6 @@
 # envlens
+![Go](https://img.shields.io/badge/Go-273849?style=for-the-badge&logo=go&logoColor=64b5f6)
+![Bubble Tea](https://img.shields.io/badge/Bubble_Tea-273849?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8Y2lyY2xlIGN4PSIxMiIgY3k9IjYiIHI9IjUiIGZpbGw9IiM2NGI1ZjYiLz4KICA8Y2lyY2xlIGN4PSI3IiBjeT0iMTQuNSIgcj0iMy41IiBmaWxsPSIjNjRiNWY2Ii8+CiAgPGNpcmNsZSBjeD0iMTYiIGN5PSIxNy41IiByPSIzLjUiIGZpbGw9IiM2NGI1ZjYiLz4KPC9zdmc+)
 
 A Terminal UI for viewing, searching, and selecting environment variables, built with [Go](https://github.com/golang/go) and [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
