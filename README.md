@@ -2,32 +2,22 @@
 
 A Terminal UI for viewing, searching, and selecting environment variables, built with [Go](https://github.com/golang/go) and [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
+<p align="center">
+  <img width="100%" src="https://github.com/user-attachments/assets/ea7b42b7-61ea-4700-9c79-2cd5aa26ad0a" alt="User copying and searching environment variables in the terminal" />
+</p>
+
+## Motivation
+
+I was frustrated with the way Windows handles environment variables. I had to use System Properties or PowerShell to inspect or copy a single variable, and there was no easy way to see how local `.env` files overlapped with system variables.
+
+I built envlens to quickly search, view, and copy system and local variables in one place, which makes switching projects and debugging environments fast and painless.
+
 ## Usage
 
-Run the program in your terminal:
+Start from root:
 
 ```bash
 go run .
 ```
 
-If a `.env` file is present in the current directory, it will be loaded automatically.
-
-## Controls
-
-### General
-
-| Key | Action |
-| :--- | :--- |
-| `q` / `ctrl+c` | Quit the application |
-| `↑` / `k` | Move cursor up |
-| `↓` / `j` | Move cursor down |
-| `space` / `enter` | Select/deselect variable |
-| `y` | Copy focused variable to clipboard |
-| `Y` | Copy all selected variables to clipboard |
-
-### Modes
-
-| Key | Mode | Description |
-| :--- | :--- | :--- |
-| `s` | **Search** | Type to filter the variable list. Press `esc` to return. |
-| `d` | **Local .env** | Switch to view variables from the local `.env` file. Press `esc` to return. |
+Any `.env` file in the current directory will be loaded automatically.
