@@ -26,3 +26,10 @@ func copySelectedVarsToClipboard(selected map[int]struct{}, variables []string) 
 	}
 	return fmt.Sprintf("Copied %d variables to clipboard", len(selectedVars)), nil
 }
+
+func copySingleVarToClipboard(text string) (string, error) {
+	if err := clipboard.WriteAll(text); err != nil {
+		return "", err
+	}
+	return "Successfully copied to clipboard", nil
+}

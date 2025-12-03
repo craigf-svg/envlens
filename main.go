@@ -17,12 +17,14 @@ const (
 	modeSearch         = "Search"
 	modeLocalEnv       = "LocalEnv"
 	footerRightPadding = 5
+	ctrlY              = rune(0x19)
 )
 
 var (
-	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("204"))
-	checkStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("204"))
-	styledCheck = checkStyle.Render("x")
+	cursorStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("204"))
+	checkStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("204"))
+	styledCheck       = checkStyle.Render("x")
+	searchCursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("204"))
 )
 
 type model struct {
@@ -30,6 +32,7 @@ type model struct {
 	localEnvVars  SelectionModel
 	mode          string
 	searchTerm    string
+	searchCursor  int
 	statusMessage string
 	hideValues    bool
 	hasLocalEnv   bool
@@ -108,6 +111,7 @@ func initialModel(envList []string, initMode string, localEnv []string, hideValu
 		localEnvVars:  localEnvVars,
 		mode:          initMode,
 		searchTerm:    "",
+		searchCursor:  0,
 		statusMessage: "",
 		hideValues:    hideValues,
 		hasLocalEnv:   hasLocalEnv,
@@ -119,6 +123,15 @@ func initialModel(envList []string, initMode string, localEnv []string, hideValu
 func (m model) Init() tea.Cmd {
 	// Just return `nil`, which means "no I/O right now, please."
 	return nil
+}
+
+func (m *model) copyItemToClipboard(text string) {
+	err := clipboard.WriteAll(text)
+	if err != nil {
+		fmt.Println("Failed to copy to clipboard:", err)
+	} else {
+		m.statusMessage = "Successfully copied to clipboard"
+	}
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -167,11 +180,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			case "y":
 				v := m.osEnvVars.variables[m.osEnvVars.cursor]
-				err := clipboard.WriteAll(v)
+				status, err := copySingleVarToClipboard(v)
 				if err != nil {
 					fmt.Println("Failed to copy to clipboard:", err)
 				} else {
-					m.statusMessage = "Successfully copied to clipboard"
+					m.statusMessage = status
 				}
 				return m, nil
 
@@ -195,20 +208,62 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mode = modeLocalEnv
 			}
 		case modeSearch:
+			items, indices := filterChoices(m.osEnvVars.choices, m.searchTerm)
 			switch msg.Type {
 			case tea.KeyEsc:
 				m.mode = modeNormal
 				m.searchTerm = ""
+				m.searchCursor = 0
+				return m, nil
 			case tea.KeyBackspace:
 				if len(m.searchTerm) > 0 {
 					m.searchTerm = m.searchTerm[:len(m.searchTerm)-1]
+					m.searchCursor = 0
 				}
 			case tea.KeyTab:
 				m.hideValues = !m.hideValues
-			default:
-				if msg.Type == tea.KeyRunes {
-					m.searchTerm += msg.String()
+			case tea.KeyUp:
+				if m.searchCursor > 0 {
+					m.searchCursor--
 				}
+			case tea.KeyDown:
+				if m.searchCursor < len(items)-1 {
+					m.searchCursor++
+				}
+			case tea.KeyEnter, tea.KeySpace:
+				if len(indices) > 0 {
+					idx := indices[m.searchCursor]
+					if _, ok := m.osEnvVars.selected[idx]; ok {
+						delete(m.osEnvVars.selected, idx)
+					} else {
+						m.osEnvVars.selected[idx] = struct{}{}
+					}
+				}
+			case tea.KeyCtrlY:
+				if len(items) > 0 && m.searchCursor < len(items) {
+					m.copyItemToClipboard(items[m.searchCursor])
+				}
+				return m, nil
+			default:
+				if msg.Type != tea.KeyRunes {
+					return m, nil
+				}
+				runes := msg.Runes
+				// Handle ctrl+y
+				if len(runes) == 1 && runes[0] == ctrlY {
+					if len(items) > 0 && m.searchCursor < len(items) {
+						m.copyItemToClipboard(items[m.searchCursor])
+					}
+					return m, nil
+				}
+
+				// Ignore alt and control
+				if msg.Alt || (len(runes) == 1 && runes[0] < 32) {
+					return m, nil
+				}
+
+				m.searchTerm += msg.String()
+				m.searchCursor = 0
 			}
 		case modeLocalEnv:
 			switch msg.String() {
@@ -235,11 +290,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case "y":
 				v := m.localEnvVars.variables[m.localEnvVars.cursor]
-				err := clipboard.WriteAll(v)
+				status, err := copySingleVarToClipboard(v)
 				if err != nil {
 					fmt.Println("Failed to copy to clipboard:", err)
 				} else {
-					m.statusMessage = "Successfully copied to clipboard"
+					m.statusMessage = status
 				}
 				return m, nil
 			case "Y":
@@ -257,6 +312,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Return the updated model to the Bubble Tea runtime for processing.
 	// Note that we're not returning a command.
 	return m, nil
+}
+
+func filterChoices(choices []string, term string) ([]string, []int) {
+	term = strings.ToLower(term)
+	var items []string
+	var indices []int
+	for i, choice := range choices {
+		if strings.Contains(strings.ToLower(choice), term) {
+			items = append(items, choice)
+			indices = append(indices, i)
+		}
+	}
+	return items, indices
 }
 
 func visibleRange(cursor, total, height int) (start, end int) {
@@ -304,16 +372,21 @@ func renderList(m model) string {
 		cursor = m.localEnvVars.cursor
 		selected = m.localEnvVars.selected
 	case modeSearch:
-		term := strings.ToLower(m.searchTerm)
-		for i, choice := range m.osEnvVars.choices {
-			if strings.Contains(strings.ToLower(choice), term) {
-				items = append(items, choice)
-				if i == m.osEnvVars.cursor {
-					cursor = len(items) - 1
-				}
+		var indices []int
+		items, indices = filterChoices(m.osEnvVars.choices, m.searchTerm)
+		cursor = m.searchCursor
+		if cursor >= len(items) {
+			cursor = len(items) - 1
+		}
+		if cursor < 0 {
+			cursor = 0
+		}
+		selected = make(map[int]struct{})
+		for i, origIdx := range indices {
+			if _, ok := m.osEnvVars.selected[origIdx]; ok {
+				selected[i] = struct{}{}
 			}
 		}
-		selected = m.osEnvVars.selected
 		if len(items) == 0 {
 			return "No results found\n"
 		}
@@ -325,14 +398,14 @@ func renderList(m model) string {
 
 	listHeight := m.height
 	if m.mode == modeSearch {
-		listHeight = m.height - 1
+		listHeight = m.height - 3
 	}
 	start, end := visibleRange(cursor, len(items), listHeight)
 
 	var output string
 	for i := start; i < end; i++ {
 		symbol := " "
-		drawCursor := i == cursor && m.mode != modeSearch
+		drawCursor := i == cursor
 		if drawCursor {
 			symbol = ">"
 		}
@@ -362,8 +435,23 @@ func renderFooter(m model) string {
 		footer += lipgloss.PlaceHorizontal(m.width-footerRightPadding, lipgloss.Right, cursorPosition)
 		footer += "\n[↑/↓] Navigate [↵] Select  [y/Y] Copy (one/all)  [tab] Toggle  [s] Search  [d] Local  [q] Quit"
 	case modeSearch:
-		styledBlock := cursorStyle.Render("█")
-		footer = fmt.Sprintf("\nSearch: %s%s\n[esc] Back  [tab] Toggle", m.searchTerm, styledBlock)
+		cursorBlock := searchCursorStyle.Render("█")
+		items, _ := filterChoices(m.osEnvVars.choices, m.searchTerm)
+		cursorPosition := fmt.Sprintf("<%d-%d>", m.searchCursor+1, len(items))
+		footer = lipgloss.PlaceHorizontal(m.width-footerRightPadding, lipgloss.Right, cursorPosition)
+		width := m.width - 1
+		if width < 0 {
+			width = 0
+		}
+		searchBorderStyle := lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("245")).
+			Padding(0, 1).
+			Width(width)
+
+		content := fmt.Sprintf("Search mode: %s%s", m.searchTerm, cursorBlock)
+		searchWithBorder := searchBorderStyle.Render(content)
+		footer += fmt.Sprintf("\n%s\n[↑/↓] Navigate [↵] Select [ctrl+y] Copy (one) [tab] Toggle [esc] Back", searchWithBorder)
 	case modeLocalEnv:
 		footer += "\n[↑/↓] Navigate [↵] Select [y/Y] Copy (one/all) [tab] Toggle [d] Global  [q] Quit"
 	default:
