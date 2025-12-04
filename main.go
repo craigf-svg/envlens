@@ -13,11 +13,12 @@ import (
 )
 
 const (
-	modeNormal         = "Normal"
-	modeSearch         = "Search"
-	modeLocalEnv       = "LocalEnv"
-	footerRightPadding = 5
-	ctrlY              = rune(0x19)
+	modeNormal            = "Normal"
+	modeSearch            = "Search"
+	modeLocalEnv          = "LocalEnv"
+	footerRightPadding    = 5
+	ctrlY                 = rune(0x19)
+	errMsgClipboardFailed = "Failed to copy to clipboard:"
 )
 
 var (
@@ -49,8 +50,8 @@ func main() {
 	var hasLocalEnv bool
 
 	if *demoMode {
-		envList = getDemoEnvVars()
-		envSlice = getDemoLocalEnvVars()
+		envList = demoEnvVars()
+		envSlice = demoLocalEnvVars()
 		hasLocalEnv = true
 	} else {
 		err := godotenv.Load()
@@ -128,7 +129,7 @@ func (m model) Init() tea.Cmd {
 func (m *model) copyItemToClipboard(text string) {
 	err := clipboard.WriteAll(text)
 	if err != nil {
-		fmt.Println("Failed to copy to clipboard:", err)
+		fmt.Println(errMsgClipboardFailed, err)
 	} else {
 		m.statusMessage = "Successfully copied to clipboard"
 	}
@@ -182,7 +183,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				v := m.osEnvVars.variables[m.osEnvVars.cursor]
 				status, err := copySingleVarToClipboard(v)
 				if err != nil {
-					fmt.Println("Failed to copy to clipboard:", err)
+					fmt.Println(errMsgClipboardFailed, err)
 				} else {
 					m.statusMessage = status
 				}
@@ -191,7 +192,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "Y":
 				status, err := copySelectedVarsToClipboard(m.osEnvVars.selected, m.osEnvVars.variables)
 				if err != nil {
-					fmt.Println("Failed to copy to clipboard:", err)
+					fmt.Println(errMsgClipboardFailed, err)
 				} else {
 					m.statusMessage = status
 				}
@@ -292,7 +293,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				v := m.localEnvVars.variables[m.localEnvVars.cursor]
 				status, err := copySingleVarToClipboard(v)
 				if err != nil {
-					fmt.Println("Failed to copy to clipboard:", err)
+					fmt.Println(errMsgClipboardFailed, err)
 				} else {
 					m.statusMessage = status
 				}
@@ -300,7 +301,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "Y":
 				status, err := copySelectedVarsToClipboard(m.localEnvVars.selected, m.localEnvVars.variables)
 				if err != nil {
-					fmt.Println("Failed to copy to clipboard:", err)
+					fmt.Println(errMsgClipboardFailed, err)
 				} else {
 					m.statusMessage = status
 				}

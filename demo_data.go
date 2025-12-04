@@ -1,6 +1,6 @@
 package main
 
-func getDemoEnvVars() []string {
+func demoEnvVars() []string {
 	return []string{
 		"PATH=/usr/local/bin:/usr/bin:/bin",
 		"HOME=/home/developer",
@@ -25,9 +25,9 @@ func getDemoEnvVars() []string {
 	}
 }
 
-func getDemoLocalEnvVars() []string {
+func demoLocalEnvVars() []string {
 	return []string{
-		"DATABASE_URL=postgres://admin:localpass@localhost:5432/devdb",
+		"DATABASE_URL=postgres://admin:<password>@localhost:5432/devdb",
 		"API_KEY=sk-local-dev-key-12345",
 		"REDIS_URL=redis://localhost:6379/0",
 		"JWT_SECRET=local-dev-jwt-secret",
