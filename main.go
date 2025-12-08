@@ -21,6 +21,17 @@ const (
 	errMsgClipboardFailed = "Failed to copy to clipboard:"
 )
 
+func supportsModernTerminal() bool {
+	return os.Getenv("WT_SESSION") != "" || os.Getenv("TERM_PROGRAM") != "" || os.Getenv("COLORTERM") != ""
+}
+
+func icon(emoji, fallback string) string {
+	if supportsModernTerminal() {
+		return emoji
+	}
+	return fallback
+}
+
 var (
 	cursorStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("204"))
 	checkStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("204"))
@@ -41,15 +52,13 @@ type model struct {
 	width         int
 }
 
-var version = "dev"
-
 func main() {
 	showVersion := flag.Bool("version", false, "Print version and exit")
 	demoMode := flag.Bool("demo", false, "Run with test data")
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println("envlens", version)
+		fmt.Println("envlens", getVersion())
 		return
 	}
 
@@ -86,7 +95,10 @@ func main() {
 	}
 
 	hideValuesDefault := false
-	p := tea.NewProgram(initialModel(envList, modeNormal, envSlice, hideValuesDefault, hasLocalEnv))
+	p := tea.NewProgram(
+		initialModel(envList, modeNormal, envSlice, hideValuesDefault, hasLocalEnv),
+		tea.WithAltScreen(),
+	)
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)
@@ -101,31 +113,22 @@ func printList(list []string) {
 }
 
 func initialModel(envList []string, initMode string, localEnv []string, hideValues bool, hasLocalEnv bool) model {
-	osEnvVars := SelectionModel{
-		variables: envList,
-		choices:   envList,
-		selected:  map[int]struct{}{},
-		cursor:    0,
-	}
-
-	localEnvVars := SelectionModel{
-		variables: localEnv,
-		choices:   localEnv,
-		selected:  map[int]struct{}{},
-		cursor:    0,
-	}
-
 	return model{
-		osEnvVars:     osEnvVars,
-		localEnvVars:  localEnvVars,
-		mode:          initMode,
-		searchTerm:    "",
-		searchCursor:  0,
-		statusMessage: "",
-		hideValues:    hideValues,
-		hasLocalEnv:   hasLocalEnv,
-		height:        20,
-		width:         80,
+		osEnvVars: SelectionModel{
+			variables: envList,
+			choices:   envList,
+			selected:  map[int]struct{}{},
+		},
+		localEnvVars: SelectionModel{
+			variables: localEnv,
+			choices:   localEnv,
+			selected:  map[int]struct{}{},
+		},
+		mode:        initMode,
+		hideValues:  hideValues,
+		hasLocalEnv: hasLocalEnv,
+		height:      20,
+		width:       80,
 	}
 }
 
@@ -356,11 +359,11 @@ func (m model) View() string {
 	var header string
 	switch m.mode {
 	case modeNormal:
-		header = "📋 Environment Variables:"
+		header = icon("📋", "[ENV]") + " Environment Variables:"
 	case modeLocalEnv:
-		header = "📁 Local .env file:"
+		header = icon("📁", "[.env]") + " Local .env file:"
 	case modeSearch:
-		header = "🔍 Search Results:"
+		header = icon("🔍", "[S]") + " Search Results:"
 	default:
 		header = "Environment Variables:"
 	}
@@ -413,8 +416,8 @@ func renderList(m model) string {
 
 	var output string
 	for i := start; i < end; i++ {
-		symbol := " "
 		drawCursor := i == cursor
+		symbol := " "
 		if drawCursor {
 			symbol = ">"
 		}
