@@ -63,6 +63,8 @@ To make sure everything worked, type `envlens --version`.
 envlens
 ```
 
+> If you downloaded the binary but didn't add it to your PATH yet, run `./envlens` (.\envlens on PowerShell) straight from the folder.
+
 Any `.env` file in the current directory will be loaded automatically.
 
 ## Usage
