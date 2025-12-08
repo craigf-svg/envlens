@@ -14,7 +14,7 @@ A cross-platform Terminal UI built with [Go](https://github.com/golang/go) and [
 
 I was frustrated with the way Windows handles environment variables. I had to use System Properties or PowerShell to inspect or copy a single variable, and there was no easy way to see how local `.env` files overlapped with system variables.
 
-I built envlens to quickly search, view, and copy system and local variables in one place, which makes switching projects and debugging environments much easier.
+So I made envlens to search, view, and copy both system and local variables all in one place, which makes switching between projects and debugging environments way less painful.
 
 Works on Windows, macOS, and Linux.
 
