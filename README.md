@@ -14,16 +14,16 @@ A cross-platform Terminal UI built with [Go](https://github.com/golang/go) and [
 
 I was frustrated with the way Windows handles environment variables. I had to use System Properties or PowerShell to inspect or copy a single variable, and there was no easy way to see how local `.env` files overlapped with system variables.
 
-I built envlens to quickly search, view, and copy system and local variables in one place, which makes switching projects and debugging environments fast and painless.
+I built envlens to quickly search, view, and copy system and local variables in one place, which makes switching projects and debugging environments much easier.
 
 Works on Windows, macOS, and Linux.
 
 ## Features
 
-+ **Unified view**: Automatically loads `.env` files and merges them with system variables
-+ **Fuzzy search**: Quickly filter by variable name or value
-+ **Clipboard integration**: Copy single or select multiple variables
-+ **Mask private keys**: Toggle visibility to hide keys
++ **Unified view**: envlens automatically loads your .env files and merges them with your system variables
++ **Fuzzy search**: Type a few letters of a name or value and find what you need fast
++ **Clipboard integration**: Copy one or several variables easily
++ **Mask private keys**: Hide values when you need to
 
 ## Quick Start
 
@@ -38,6 +38,24 @@ go install github.com/craigf-svg/envlens@latest
 ### Or download the binary
 
 Grab the latest release for your platform from the [Releases page](https://github.com/craigf-svg/envlens/releases).
+
+### Run from anywhere
+<details>
+<summary>Adding to PATH</summary>
+
+**Go installation**:
+
+- On Windows, head to System Properties → Environment Variables and add `%USERPROFILE%\go\bin` to your PATH.
+- On macOS or Linux, put `export PATH=$PATH:$HOME/go/bin` in your `~/.bashrc` or `~/.zshrc`.
+
+**Binary download**:
+- On Windows, add the folder where your binary lives to PATH in System Properties → Environment Variables.
+- On macOS or Linux, run `chmod +x envlens && sudo mv envlens /usr/local/bin/`.
+</details>
+
+Once your PATH is set up, close your terminal and open it again.
+
+To make sure everything worked, type `envlens --version`.
 
 ### Launch
 
