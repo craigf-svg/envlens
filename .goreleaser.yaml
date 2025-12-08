@@ -3,6 +3,8 @@ version: 2
 builds:
   - main: .
     binary: envlens
+    ldflags:
+      - -s -w -X main.version={{.Version}}
     goos:
       - linux
       - darwin

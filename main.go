@@ -41,9 +41,17 @@ type model struct {
 	width         int
 }
 
+var version = "dev"
+
 func main() {
+	showVersion := flag.Bool("version", false, "Print version and exit")
 	demoMode := flag.Bool("demo", false, "Run with test data")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("envlens", version)
+		return
+	}
 
 	var envList []string
 	var envSlice []string
