@@ -62,13 +62,13 @@ func main() {
 		return
 	}
 
-	var envList []string
-	var envSlice []string
+	var osEnvList []string
+	var localEnvList []string
 	var hasLocalEnv bool
 
 	if *demoMode {
-		envList = demoEnvVars()
-		envSlice = demoLocalEnvVars()
+		osEnvList = demoEnvVars()
+		localEnvList = demoLocalEnvVars()
 		hasLocalEnv = true
 	} else {
 		err := godotenv.Load()
@@ -81,22 +81,21 @@ func main() {
 			fmt.Println("Error reading .env:", err)
 		}
 
-		envSlice = make([]string, 0, len(localEnv))
+		localEnvList = make([]string, 0, len(localEnv))
 		for k, v := range localEnv {
-			envSlice = append(envSlice, k+"="+v)
+			localEnvList = append(localEnvList, k+"="+v)
 		}
 
-		envList = os.Environ()
-		if os.Getenv("DEBUG") != "" {
-			printList(envList)
-		}
-
+		osEnvList = os.Environ()
 		hasLocalEnv = (err == nil && len(localEnv) > 0)
 	}
 
+	osHiddenList := autoHideFilter(osEnvList)
+	localHiddenList := autoHideFilter(localEnvList)
+
 	hideValuesDefault := false
 	p := tea.NewProgram(
-		initialModel(envList, modeNormal, envSlice, hideValuesDefault, hasLocalEnv),
+		initialModel(osEnvList, modeNormal, localEnvList, hideValuesDefault, hasLocalEnv, osHiddenList, localHiddenList),
 		tea.WithAltScreen(),
 	)
 	if _, err := p.Run(); err != nil {
@@ -105,24 +104,36 @@ func main() {
 	}
 }
 
-func printList(list []string) {
-	for count := 0; count < len(list); count++ {
-		fmt.Printf("Environment Variable #%v: %v\n", count, list[count])
+func autoHideFilter(envList []string) map[int]struct{} {
+	hiddenList := make(map[int]struct{})
+	for i, env := range envList {
+		env = strings.ToLower(env)
+		key, _, found := strings.Cut(env, "=")
+
+		if !found {
+			continue
+		}
+		if strings.Contains(key, "key") || strings.Contains(key, "private") || strings.Contains(key, "secret") {
+			hiddenList[i] = struct{}{}
+		}
 	}
-	fmt.Println("Total Number of Environment Variables", len(list))
+
+	return hiddenList
 }
 
-func initialModel(envList []string, initMode string, localEnv []string, hideValues bool, hasLocalEnv bool) model {
+func initialModel(envList []string, initMode string, localEnv []string, hideValues bool, hasLocalEnv bool, hidden map[int]struct{}, localHidden map[int]struct{}) model {
 	return model{
 		osEnvVars: SelectionModel{
 			variables: envList,
 			choices:   envList,
 			selected:  map[int]struct{}{},
+			hidden:    hidden,
 		},
 		localEnvVars: SelectionModel{
 			variables: localEnv,
 			choices:   localEnv,
 			selected:  map[int]struct{}{},
+			hidden:    localHidden,
 		},
 		mode:        initMode,
 		hideValues:  hideValues,
@@ -377,12 +388,14 @@ func renderList(m model) string {
 	var items []string
 	var cursor int
 	var selected map[int]struct{}
+	var hiddenList map[int]struct{}
 
 	switch m.mode {
 	case modeLocalEnv:
 		items = m.localEnvVars.variables
 		cursor = m.localEnvVars.cursor
 		selected = m.localEnvVars.selected
+		hiddenList = m.localEnvVars.hidden
 	case modeSearch:
 		var indices []int
 		items, indices = filterChoices(m.osEnvVars.choices, m.searchTerm)
@@ -394,9 +407,13 @@ func renderList(m model) string {
 			cursor = 0
 		}
 		selected = make(map[int]struct{})
+		hiddenList = make(map[int]struct{})
 		for i, origIdx := range indices {
 			if _, ok := m.osEnvVars.selected[origIdx]; ok {
 				selected[i] = struct{}{}
+			}
+			if _, ok := m.osEnvVars.hidden[origIdx]; ok {
+				hiddenList[i] = struct{}{}
 			}
 		}
 		if len(items) == 0 {
@@ -406,6 +423,7 @@ func renderList(m model) string {
 		items = m.osEnvVars.choices
 		cursor = m.osEnvVars.cursor
 		selected = m.osEnvVars.selected
+		hiddenList = m.osEnvVars.hidden
 	}
 
 	listHeight := m.height
@@ -430,7 +448,14 @@ func renderList(m model) string {
 			}
 		}
 		line := "%s [%s] %s"
-		formatLine := fmt.Sprintf(line, symbol, check, maskEnvVar(items[i], m.hideValues))
+		var formatLine string
+
+		if _, hidden := hiddenList[i]; hidden {
+			formatLine = fmt.Sprintf(line, symbol, check, maskEnvVar(items[i], m.hideValues, true))
+		} else {
+			formatLine = fmt.Sprintf(line, symbol, check, maskEnvVar(items[i], m.hideValues, false))
+		}
+
 		if drawCursor {
 			formatLine = cursorStyle.Render(formatLine)
 		}
@@ -475,13 +500,16 @@ func renderFooter(m model) string {
 	return footer
 }
 
-func maskEnvVar(line string, hide bool) string {
-	if !hide {
-		return line
+func maskEnvVar(line string, hide bool, hidden bool) string {
+	if hide || hidden {
+		key, val, found := strings.Cut(line, "=")
+
+		if !found {
+			return line
+		}
+
+		return key + "=" + strings.Repeat("*", len(val))
 	}
-	key, val, found := strings.Cut(line, "=")
-	if !found {
-		return line
-	}
-	return key + "=" + strings.Repeat("*", len(val))
+
+	return line
 }
