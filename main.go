@@ -286,11 +286,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.hideValues = !m.hideValues
 				return m, nil
 			case tea.KeyEnter, tea.KeySpace:
-				// save to memory and persist to .env file
 				if m.editingIndex >= 0 && m.editingIndex < len(m.osEnvVars.variables) {
 					key, val, found := strings.Cut(m.editBuffer, "=")
 					if !found {
-						m.statusMessage = "Edit must be in KEY=VALUE format; not saved to .env"
+						m.statusMessage = "Edit must be in KEY=VALUE format"
 						m.editBuffer = ""
 					} else {
 						m.osEnvVars.variables[m.editingIndex] = m.editBuffer
