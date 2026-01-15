@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
 	"strings"
 
 	"github.com/atotto/clipboard"
@@ -15,6 +16,7 @@ import (
 const (
 	modeNormal            = "Normal"
 	modeSearch            = "Search"
+	modeEdit              = "Edit"
 	modeLocalEnv          = "LocalEnv"
 	footerRightPadding    = 5
 	ctrlY                 = rune(0x19)
@@ -45,6 +47,9 @@ type model struct {
 	mode          string
 	searchTerm    string
 	searchCursor  int
+	editBuffer    string
+	editCursor    int
+	editingIndex  int
 	statusMessage string
 	hideValues    bool
 	hasLocalEnv   bool
@@ -189,7 +194,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.osEnvVars.cursor < len(m.osEnvVars.choices)-1 {
 					m.osEnvVars.cursor++
 				}
-
 			case "enter", " ":
 				_, ok := m.osEnvVars.selected[m.osEnvVars.cursor]
 				if ok {
@@ -229,6 +233,68 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				m.mode = modeLocalEnv
+			}
+
+		case modeEdit:
+			r := []rune(m.editBuffer)
+			switch msg.Type {
+			case tea.KeyEsc:
+				m.editBuffer = ""
+				m.editCursor = 0
+				m.mode = modeLocalEnv
+				return m, nil
+			case tea.KeyBackspace:
+				if m.editCursor > 0 {
+					m.editBuffer = string(append(r[:m.editCursor-1], r[m.editCursor:]...))
+					m.editCursor--
+				}
+				return m, nil
+			case tea.KeyLeft:
+				if m.editCursor > 0 {
+					m.editCursor--
+				}
+				return m, nil
+			case tea.KeyRight:
+				if m.editCursor < len(r) {
+					m.editCursor++
+				}
+				return m, nil
+			case tea.KeyTab:
+				m.hideValues = !m.hideValues
+				return m, nil
+			case tea.KeyEnter:
+				if m.editingIndex >= 0 && m.editingIndex < len(m.localEnvVars.variables) {
+					key, _, found := strings.Cut(m.editBuffer, "=")
+					if !found || key == "" {
+						m.statusMessage = "Edit must be in KEY=VALUE format"
+						return m, nil
+					}
+					m.localEnvVars.variables[m.editingIndex] = m.editBuffer
+					m.localEnvVars.choices[m.editingIndex] = m.editBuffer
+					// Save to .env file
+					envMap := make(map[string]string)
+					for _, v := range m.localEnvVars.variables {
+						if k, val, ok := strings.Cut(v, "="); ok {
+							envMap[k] = val
+						}
+					}
+					if err := godotenv.Write(envMap, ".env"); err != nil {
+						m.statusMessage = "Failed to save .env: " + err.Error()
+					} else {
+						m.statusMessage = fmt.Sprintf("Saved %s", key)
+					}
+				}
+				m.editBuffer = ""
+				m.editCursor = 0
+				m.mode = modeLocalEnv
+				return m, nil
+			case tea.KeyRunes:
+				if msg.Alt || (len(msg.Runes) == 1 && msg.Runes[0] < 32) {
+					return m, nil
+				}
+				m.editBuffer = string(append(r[:m.editCursor], append(msg.Runes, r[m.editCursor:]...)...))
+				m.editCursor += len(msg.Runes)
+				return m, nil
 			}
 		case modeSearch:
 			items, indices := filterChoices(m.osEnvVars.choices, m.searchTerm)
@@ -292,6 +358,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "esc", "d":
 				m.mode = modeNormal
+			case "e":
+				// Enter edit mode
+				if len(m.localEnvVars.choices) > 0 && m.localEnvVars.cursor < len(m.localEnvVars.choices) {
+					m.mode = modeEdit
+					m.editingIndex = m.localEnvVars.cursor
+					m.editBuffer = m.localEnvVars.choices[m.localEnvVars.cursor]
+					// place cursor at end of buffer
+					m.editCursor = len([]rune(m.editBuffer))
+				}
 			case "tab":
 				m.hideValues = !m.hideValues
 			case "ctrl+c", "q":
@@ -371,7 +446,7 @@ func (m model) View() string {
 	switch m.mode {
 	case modeNormal:
 		header = icon("📋", "[ENV]") + " Environment Variables:"
-	case modeLocalEnv:
+	case modeLocalEnv, modeEdit:
 		header = icon("📁", "[.env]") + " Local .env file:"
 	case modeSearch:
 		header = icon("🔍", "[S]") + " Search Results:"
@@ -391,7 +466,7 @@ func renderList(m model) string {
 	var hiddenList map[int]struct{}
 
 	switch m.mode {
-	case modeLocalEnv:
+	case modeLocalEnv, modeEdit:
 		items = m.localEnvVars.variables
 		cursor = m.localEnvVars.cursor
 		selected = m.localEnvVars.selected
@@ -470,7 +545,35 @@ func renderFooter(m model) string {
 	case modeNormal:
 		cursorPosition := fmt.Sprintf("<%d-%d>", m.osEnvVars.cursor+1, len(m.osEnvVars.variables))
 		footer += lipgloss.PlaceHorizontal(m.width-footerRightPadding, lipgloss.Right, cursorPosition)
-		footer += "\n[↑/↓] Navigate [↵] Select  [y/Y] Copy (one/all)  [tab] Toggle  [s] Search  [d] Local  [q] Quit"
+		footer += "\n[↑/↓] Navigate [↵] Select [y/Y] Copy (one/all)  [tab] Toggle  [s] Search  [d] Local  [q] Quit"
+
+	case modeEdit:
+		cursorBlock := searchCursorStyle.Render("█")
+		width := m.width - 1
+		if width < 0 {
+			width = 0
+		}
+		editBorderStyle := lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("245")).
+			Padding(0, 1).
+			Width(width)
+
+		// render edit buffer with cursor inserted at editCursor
+		r := []rune(m.editBuffer)
+		if m.editCursor < 0 {
+			m.editCursor = 0
+		}
+		if m.editCursor > len(r) {
+			m.editCursor = len(r)
+		}
+		var display string
+		// insert cursor block in between runes
+		display = string(r[:m.editCursor]) + cursorBlock + string(r[m.editCursor:])
+
+		editWithBorder := editBorderStyle.Render(fmt.Sprintf("Edit: %s", display))
+		footer += fmt.Sprintf("\n%s\n[←/→] Move [↵] Save [tab] Toggle [esc] Cancel", editWithBorder)
+
 	case modeSearch:
 		cursorBlock := searchCursorStyle.Render("█")
 		items, _ := filterChoices(m.osEnvVars.choices, m.searchTerm)
@@ -490,7 +593,7 @@ func renderFooter(m model) string {
 		searchWithBorder := searchBorderStyle.Render(content)
 		footer += fmt.Sprintf("\n%s\n[↑/↓] Navigate [↵] Select [ctrl+y] Copy (one) [tab] Toggle [esc] Back", searchWithBorder)
 	case modeLocalEnv:
-		footer += "\n[↑/↓] Navigate [↵] Select [y/Y] Copy (one/all) [tab] Toggle [d] Global  [q] Quit"
+		footer += "\n[↑/↓] Navigate [↵] Select [e] Edit [y/Y] Copy (one/all) [tab] Toggle [d] Global  [q] Quit"
 	default:
 		footer += "\n[?] Unknown mode"
 	}
