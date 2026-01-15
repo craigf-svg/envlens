@@ -5,11 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"os/exec"
-	"path/filepath"
-	"regexp"
-	"runtime"
-
 	"strings"
 
 	"github.com/atotto/clipboard"
@@ -199,16 +194,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.osEnvVars.cursor < len(m.osEnvVars.choices)-1 {
 					m.osEnvVars.cursor++
 				}
-
-			case "e":
-				// Enter edit mode
-				if len(m.osEnvVars.choices) > 0 && m.osEnvVars.cursor < len(m.osEnvVars.choices) {
-					m.mode = modeEdit
-					m.editingIndex = m.osEnvVars.cursor
-					m.editBuffer = m.osEnvVars.choices[m.osEnvVars.cursor]
-					// place cursor at end of buffer
-					m.editCursor = len([]rune(m.editBuffer))
-				}
 			case "enter", " ":
 				_, ok := m.osEnvVars.selected[m.osEnvVars.cursor]
 				if ok {
@@ -251,23 +236,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case modeEdit:
-			// Separate edit mode - editBuffer holds the current text being edited
+			r := []rune(m.editBuffer)
 			switch msg.Type {
 			case tea.KeyEsc:
-				m.mode = modeNormal
 				m.editBuffer = ""
 				m.editCursor = 0
+				m.mode = modeLocalEnv
 				return m, nil
 			case tea.KeyBackspace:
-				// delete rune before cursor
-				r := []rune(m.editBuffer)
-				if m.editCursor > 0 && len(r) > 0 {
-					idx := m.editCursor
-					if idx > len(r) {
-						idx = len(r)
-					}
-					r = append(r[:idx-1], r[idx:]...)
-					m.editBuffer = string(r)
+				if m.editCursor > 0 {
+					m.editBuffer = string(append(r[:m.editCursor-1], r[m.editCursor:]...))
 					m.editCursor--
 				}
 				return m, nil
@@ -277,7 +255,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			case tea.KeyRight:
-				r := []rune(m.editBuffer)
 				if m.editCursor < len(r) {
 					m.editCursor++
 				}
@@ -285,52 +262,38 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case tea.KeyTab:
 				m.hideValues = !m.hideValues
 				return m, nil
-			case tea.KeyEnter, tea.KeySpace:
-				if m.editingIndex >= 0 && m.editingIndex < len(m.osEnvVars.variables) {
-					key, val, found := strings.Cut(m.editBuffer, "=")
-					if !found {
+			case tea.KeyEnter:
+				if m.editingIndex >= 0 && m.editingIndex < len(m.localEnvVars.variables) {
+					key, _, found := strings.Cut(m.editBuffer, "=")
+					if !found || key == "" {
 						m.statusMessage = "Edit must be in KEY=VALUE format"
-						m.editBuffer = ""
-					} else {
-						m.osEnvVars.variables[m.editingIndex] = m.editBuffer
-						m.osEnvVars.choices[m.editingIndex] = m.editBuffer
-						m.statusMessage = "Edited variable"
-
-						// set in process environment
-						_ = os.Setenv(key, val)
-
-						// attempt to persist to system environment as well
-						if perr := persistPlatformEnv(key, val); perr != nil {
-							m.statusMessage = "Failed to persist system env: " + perr.Error()
-						} else {
-							m.statusMessage = "Saved to system environment; restart terminal to apply"
+						return m, nil
+					}
+					m.localEnvVars.variables[m.editingIndex] = m.editBuffer
+					m.localEnvVars.choices[m.editingIndex] = m.editBuffer
+					// Save to .env file
+					envMap := make(map[string]string)
+					for _, v := range m.localEnvVars.variables {
+						if k, val, ok := strings.Cut(v, "="); ok {
+							envMap[k] = val
 						}
-
+					}
+					if err := godotenv.Write(envMap, ".env"); err != nil {
+						m.statusMessage = "Failed to save .env: " + err.Error()
+					} else {
+						m.statusMessage = fmt.Sprintf("Saved %s", key)
 					}
 				}
 				m.editBuffer = ""
 				m.editCursor = 0
-				m.mode = modeNormal
+				m.mode = modeLocalEnv
 				return m, nil
-			default:
-				if msg.Type != tea.KeyRunes {
+			case tea.KeyRunes:
+				if msg.Alt || (len(msg.Runes) == 1 && msg.Runes[0] < 32) {
 					return m, nil
 				}
-				// Ignore alt and control
-				runes := msg.Runes
-				if msg.Alt || (len(runes) == 1 && runes[0] < 32) {
-					return m, nil
-				}
-				// insert runes at cursor
-				r := []rune(m.editBuffer)
-				runesToInsert := runes
-				idx := m.editCursor
-				if idx > len(r) {
-					idx = len(r)
-				}
-				r = append(r[:idx], append(runesToInsert, r[idx:]...)...)
-				m.editBuffer = string(r)
-				m.editCursor += len(runesToInsert)
+				m.editBuffer = string(append(r[:m.editCursor], append(msg.Runes, r[m.editCursor:]...)...))
+				m.editCursor += len(msg.Runes)
 				return m, nil
 			}
 		case modeSearch:
@@ -395,6 +358,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "esc", "d":
 				m.mode = modeNormal
+			case "e":
+				// Enter edit mode
+				if len(m.localEnvVars.choices) > 0 && m.localEnvVars.cursor < len(m.localEnvVars.choices) {
+					m.mode = modeEdit
+					m.editingIndex = m.localEnvVars.cursor
+					m.editBuffer = m.localEnvVars.choices[m.localEnvVars.cursor]
+					// place cursor at end of buffer
+					m.editCursor = len([]rune(m.editBuffer))
+				}
 			case "tab":
 				m.hideValues = !m.hideValues
 			case "ctrl+c", "q":
@@ -474,7 +446,7 @@ func (m model) View() string {
 	switch m.mode {
 	case modeNormal:
 		header = icon("📋", "[ENV]") + " Environment Variables:"
-	case modeLocalEnv:
+	case modeLocalEnv, modeEdit:
 		header = icon("📁", "[.env]") + " Local .env file:"
 	case modeSearch:
 		header = icon("🔍", "[S]") + " Search Results:"
@@ -494,7 +466,7 @@ func renderList(m model) string {
 	var hiddenList map[int]struct{}
 
 	switch m.mode {
-	case modeLocalEnv:
+	case modeLocalEnv, modeEdit:
 		items = m.localEnvVars.variables
 		cursor = m.localEnvVars.cursor
 		selected = m.localEnvVars.selected
@@ -573,7 +545,7 @@ func renderFooter(m model) string {
 	case modeNormal:
 		cursorPosition := fmt.Sprintf("<%d-%d>", m.osEnvVars.cursor+1, len(m.osEnvVars.variables))
 		footer += lipgloss.PlaceHorizontal(m.width-footerRightPadding, lipgloss.Right, cursorPosition)
-		footer += "\n[↑/↓] Navigate [↵] Select [e] Edit  [y/Y] Copy (one/all)  [tab] Toggle  [s] Search  [d] Local  [q] Quit"
+		footer += "\n[↑/↓] Navigate [↵] Select [y/Y] Copy (one/all)  [tab] Toggle  [s] Search  [d] Local  [q] Quit"
 
 	case modeEdit:
 		cursorBlock := searchCursorStyle.Render("█")
@@ -619,7 +591,7 @@ func renderFooter(m model) string {
 
 		content := fmt.Sprintf("Search mode: %s%s", m.searchTerm, cursorBlock)
 		searchWithBorder := searchBorderStyle.Render(content)
-		footer += fmt.Sprintf("\n%s\n[↑/↓] Navigate [↵] Select [e] Edit [ctrl+y] Copy (one) [tab] Toggle [esc] Back", searchWithBorder)
+		footer += fmt.Sprintf("\n%s\n[↑/↓] Navigate [↵] Select [ctrl+y] Copy (one) [tab] Toggle [esc] Back", searchWithBorder)
 	case modeLocalEnv:
 		footer += "\n[↑/↓] Navigate [↵] Select [e] Edit [y/Y] Copy (one/all) [tab] Toggle [d] Global  [q] Quit"
 	default:
@@ -643,59 +615,4 @@ func maskEnvVar(line string, hide bool, hidden bool) string {
 	}
 
 	return line
-}
-
-// persistPlatformEnv attempts to persist an environment variable across sessions on the host platform.
-// On Windows it calls `setx`to set the variable for the user,
-// on Unix like systems it updates (or appends) an `export KEY="VALUE"` line in a shell rc file.
-
-// NOTEE-  user have to restart their terminal or source the rc file for changes to take effect.
-func persistPlatformEnv(key, val string) error {
-	// setx on Windows will persist the variable for the user
-	if runtime.GOOS == "windows" {
-		cmd := exec.Command("setx", key, val)
-		return cmd.Run()
-	}
-
-	// For Unix like systems, update the first existing rc file or ~/.profile
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
-	candidates := []string{".profile", ".bash_profile", ".bashrc", ".zshrc"}
-	var target string
-	for _, f := range candidates {
-		p := filepath.Join(home, f)
-		if _, err := os.Stat(p); err == nil {
-			target = p
-			break
-		}
-	}
-	if target == "" {
-		target = filepath.Join(home, ".profile")
-	}
-
-	// read existing content (ignore error -> treat as empty)
-	data, _ := os.ReadFile(target)
-	content := string(data)
-
-	// prepare export line - escape double quotes
-	esc := strings.ReplaceAll(val, "\"", "\\\"")
-	newLine := fmt.Sprintf("export %s=\"%s\"", key, esc)
-
-	// replace existing export KEY=... line if present
-	re := regexp.MustCompile(`(?m)^\s*export\s+` + regexp.QuoteMeta(key) + `=.*$`)
-	if re.MatchString(content) {
-		content = re.ReplaceAllString(content, newLine)
-	} else {
-		if len(content) > 0 && !strings.HasSuffix(content, "\n") {
-			content += "\n"
-		}
-		content += newLine + "\n"
-	}
-
-	// write back to file
-
-	return os.WriteFile(target, []byte(content), 0644)
 }
